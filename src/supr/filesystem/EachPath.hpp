@@ -1,13 +1,13 @@
-#ifndef HEADER__ALREAD_INCLUDED
-#define HEADER__ALREAD_INCLUDED
+#ifndef HEADER_supr_filesystem_EachPath_hpp_ALREAD_INCLUDED
+#define HEADER_supr_filesystem_EachPath_hpp_ALREAD_INCLUDED
 
 #include <gubg/mss.hpp>
 
 #include <filesystem>
 
-namespace supr::file {
+namespace supr::filesystem {
 
-    class Each
+    class EachPath
     {
     public:
         struct Config
@@ -15,7 +15,7 @@ namespace supr::file {
             bool hidden = false;
         };
 
-        Each(const Config &config)
+        EachPath(const Config &config)
             : config_(config) {}
 
         template<typename Ftor>

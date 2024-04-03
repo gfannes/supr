@@ -1,6 +1,6 @@
 #include <supr/App.hpp>
 
-#include <supr/file/Each.hpp>
+#include <supr/filesystem/EachPath.hpp>
 
 #include <gubg/mss.hpp>
 
@@ -42,8 +42,8 @@ namespace supr {
 
         std::uintmax_t total_size{};
 
-        supr::file::Each each_file({});
-        each_file(*folder, [&](const std::filesystem::path &path) {
+        supr::filesystem::EachPath each_path({});
+        each_path(*folder, [&](const std::filesystem::path &path) {
             const auto size = std::filesystem::file_size(path);
             total_size += size;
             std::cout << path << ';' << size << std::endl;
