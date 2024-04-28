@@ -8,3 +8,4 @@ authors = ["Geert Fannes <geert.fannes@gmail.com>"]
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+walkdir = "2.5.0"
