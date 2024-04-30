@@ -1,6 +1,6 @@
 fn main() {
     if let Err(e) = supr::run() {
-        eprintln!("Error: {}", e);
+        eprintln!("Failure detected\n{}", e);
         std::process::exit(1);
     }
 }
