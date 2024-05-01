@@ -7,6 +7,12 @@ pub struct Config {
     #[arg(short = 'C', long)]
     root: Option<std::path::PathBuf>,
 
+    #[arg(short = 'u', long, default_value_t = false)]
+    pub include_hidden: bool,
+
+    #[arg(short = 'U', long, default_value_t = false)]
+    pub include_ignored: bool,
+
     #[arg(short, long, default_value_t = 0)]
     verbose: i32,
 }

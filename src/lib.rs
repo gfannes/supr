@@ -3,7 +3,6 @@ mod util;
 mod config;
 
 use crate::util::Result;
-use walkdir::WalkDir;
 
 pub fn run() -> Result<()> {
     let args = config::Config::parse_from_cli();
@@ -11,7 +10,11 @@ pub fn run() -> Result<()> {
         println!("{:?}", args);
     }
 
-    for entry in WalkDir::new(args.root()?) {
+    for entry in ignore::WalkBuilder::new(args.root()?)
+        .hidden(!args.include_hidden)
+        .ignore(args.include_ignored)
+        .build()
+    {
         let entry = entry?;
         if args.do_log(1) {
             println!("{}", entry.path().display())
