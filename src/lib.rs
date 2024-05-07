@@ -1,6 +1,7 @@
 #[macro_use]
 mod util;
 mod config;
+mod data;
 mod fs;
 
 use crate::util::Result;

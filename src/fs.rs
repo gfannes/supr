@@ -1,5 +1,4 @@
-use ignore::WalkBuilder;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct Tree {
     path: PathBuf,
