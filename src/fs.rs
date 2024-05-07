@@ -3,11 +3,17 @@ use std::path::{Path, PathBuf};
 
 pub struct Tree {
     path: PathBuf,
+    include_hidden: bool,
+    include_ignored: bool,
 }
 
 impl Tree {
     pub fn new(path: PathBuf) -> Tree {
-        Tree { path }
+        Tree {
+            path,
+            include_hidden: false,
+            include_ignored: false,
+        }
     }
 }
 
@@ -16,7 +22,10 @@ impl IntoIterator for &Tree {
     type IntoIter = TreeIter;
     fn into_iter(self) -> TreeIter {
         TreeIter {
-            walk: ignore::WalkBuilder::new(&self.path).build(),
+            walk: ignore::WalkBuilder::new(&self.path)
+                .hidden(!self.include_hidden)
+                .ignore(self.include_ignored)
+                .build(),
         }
     }
 }

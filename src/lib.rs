@@ -11,15 +11,9 @@ pub fn run() -> Result<()> {
         println!("{:?}", args);
     }
 
-    for entry in ignore::WalkBuilder::new(args.root()?)
-        .hidden(!args.include_hidden)
-        .ignore(args.include_ignored)
-        .build()
-    {
-        let entry = entry?;
-        if args.do_log(1) {
-            println!("{}", entry.path().display())
-        }
+    let tree = fs::Tree::new(args.root()?);
+    for path in &tree {
+        println!("{}", path.display())
     }
 
     Ok(())
