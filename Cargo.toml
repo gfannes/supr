@@ -8,4 +8,6 @@ authors = ["Geert Fannes <geert.fannes@gmail.com>"]
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+hex = "0.4.3"
 ignore = "0.4.22"
+sha2 = "0.10.8"
