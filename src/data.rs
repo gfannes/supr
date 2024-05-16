@@ -1,12 +1,11 @@
 use crate::util::{Error, Result};
-use hex::encode;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::Path;
 
 type Bytes = [u8; 32];
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Hash {
     bytes: Bytes,
 }
@@ -36,7 +35,7 @@ impl std::fmt::Debug for Hash {
 #[derive(Debug)]
 struct Info {
     path: std::path::PathBuf,
-    content: String,
+    content: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -57,16 +56,19 @@ impl FileInfo {
         let mut sha = Sha256::new();
         sha.update(&content);
         let hash = Hash::new(sha.finalize());
-        println!("hash: {}", &hash);
 
         if let Some(prev) = self.hash2info.insert(
-            hash,
+            hash.clone(),
             Info {
                 path: rel.as_ref().to_path_buf(),
-                content: std::str::from_utf8(&content)?.to_owned(),
+                content,
             },
         ) {
-            fail!("File info already present for {}", fp.display());
+            fail!(
+                "File content collision found for '{}': {}",
+                fp.display(),
+                hash
+            );
         }
         Ok(())
     }

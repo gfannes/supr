@@ -7,14 +7,23 @@ mod fs;
 use crate::util::Result;
 
 pub fn run() -> Result<()> {
-    let args = config::Config::parse_from_cli();
-    if args.do_log(2) {
-        println!("{:?}", args);
+    let config = config::Config::parse_from_cli();
+    if config.do_log(2) {
+        println!("{:?}", config);
     }
 
-    let tree = fs::Tree::new(args.root()?);
+    let mut file_info = data::FileInfo::new();
+
+    let tree = fs::Tree::new(config.root()?);
     for path in &tree {
-        println!("{}", path.display())
+        if config.do_log(1) {
+            println!("Loading {}", path.display());
+        }
+        file_info.add(config.root()?, path)?;
+    }
+
+    if config.do_log(2) {
+        println!("{:?}", &file_info);
     }
 
     Ok(())
