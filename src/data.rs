@@ -19,21 +19,17 @@ impl Hash {
     }
 }
 
-mod my {
-    use super::Hash;
-
-    pub fn fmt(hash: &Hash, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[Hash](bytes:{})", hex::encode(&hash.bytes))
-    }
+pub fn fmt(hash: &Hash, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(f, "[Hash](bytes:{})", hex::encode(&hash.bytes))
 }
 impl std::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        my::fmt(self, f)
+        fmt(self, f)
     }
 }
 impl std::fmt::Debug for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        my::fmt(self, f)
+        fmt(self, f)
     }
 }
 
