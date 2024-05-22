@@ -1,8 +1,12 @@
-use crate::util::{Error, Result};
-use sha2::{Digest, Sha256};
+use crate::util::Result;
+use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use std::collections::HashMap;
+use std::io::prelude::*;
 use std::path::Path;
 
+// Sha256 is a bit faster than Sha1, apparently
+type Sha = sha2::Sha256;
 type Bytes = [u8; 32];
 
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -32,45 +36,90 @@ impl std::fmt::Debug for Hash {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Info {
-    path: std::path::PathBuf,
+    paths: Vec<std::path::PathBuf>,
+    content_size: usize,
     content: Vec<u8>,
 }
 
 #[derive(Debug)]
 pub struct FileInfo {
     hash2info: HashMap<Hash, Info>,
+    buffer: Vec<u8>,
+    sha: Sha,
 }
 
 impl FileInfo {
     pub fn new() -> FileInfo {
         FileInfo {
             hash2info: HashMap::new(),
+            buffer: vec![0; 128 * 1024],
+            sha: Sha::new(),
         }
     }
+
     pub fn add(&mut self, dir: impl AsRef<Path>, rel: impl AsRef<Path>) -> Result<()> {
         let fp = dir.as_ref().join(rel.as_ref());
+        let file_size = std::fs::metadata(&fp)?.len();
+
+        // let hash = self.compute_hash_slow(fp)?;
+        let hash = self.compute_hash_fast(&fp)?;
+
+        let info = self.hash2info.entry(hash.clone()).or_insert(Info {
+            paths: vec![],
+            // size: content.len(),
+            content_size: file_size as usize,
+            content: vec![],
+        });
+
+        if true {
+            info.content = std::fs::read(fp)?;
+        }
+
+        info.paths.push(rel.as_ref().to_path_buf());
+
+        let msg = bincode::serialize(info)?;
+        let clone: Info = bincode::deserialize(&msg)?;
+        println!("msg: {} {}", msg.len(), hex::encode(&msg));
+        println!("info: {:?}", info);
+        println!("clone: {:?}", clone);
+
+        Ok(())
+    }
+
+    pub fn total_byte_count(&self) -> usize {
+        let mut count = 0;
+        for (_, info) in &self.hash2info {
+            count += info.content_size;
+        }
+        count
+    }
+
+    fn compute_hash_slow(&mut self, fp: impl AsRef<Path>) -> Result<Hash> {
         let content = std::fs::read(&fp)?;
 
-        let mut sha = Sha256::new();
-        sha.update(&content);
-        let hash = Hash::new(sha.finalize());
+        self.sha.update(&content);
+        let hash = Hash::new(self.sha.finalize_reset());
 
-        if let Some(prev) = self.hash2info.insert(
-            hash.clone(),
-            Info {
-                path: rel.as_ref().to_path_buf(),
-                content,
-            },
-        ) {
-            fail!(
-                "File content collision found for '{}': {}",
-                fp.display(),
-                hash
-            );
+        Ok(hash)
+    }
+
+    fn compute_hash_fast(&mut self, fp: impl AsRef<Path>) -> Result<Hash> {
+        let mut f = std::fs::File::open(fp)?;
+        let mut size = f.metadata()?.len();
+
+        while size > 0 {
+            let read_count = f.read(&mut self.buffer)?;
+
+            self.sha.update(&self.buffer[0..read_count]);
+
+            size -= read_count as u64;
         }
-        Ok(())
+
+        let hash = Hash::new(self.sha.finalize_reset());
+
+        Ok(hash)
     }
 }
 
