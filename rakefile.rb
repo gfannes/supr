@@ -13,7 +13,9 @@ namespace :rust do
 
     desc("Test")
     task :test => :install do
-        sh("time supr")
+        sh("cargo test")
+        sh("cargo run -- -h")
+        sh("cargo run --")
         # sh("time supr -C ~/am")
     end
 end

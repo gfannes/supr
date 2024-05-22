@@ -1,13 +1,12 @@
 #[macro_use]
-mod util;
-mod config;
+pub mod util;
+pub mod config;
 mod data;
 mod fs;
 
 use crate::util::Result;
 
-pub fn run() -> Result<()> {
-    let config = config::Config::parse_from_cli();
+pub fn run(config: config::Config) -> Result<()> {
     if config.do_log(2) {
         println!("{:?}", config);
     }

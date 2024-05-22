@@ -1,6 +1,7 @@
-fn main() {
-    if let Err(e) = supr::run() {
-        eprintln!("Failure detected\n{}", e);
-        std::process::exit(1);
-    }
+fn main() -> supr::util::Result<()> {
+    let config = supr::config::Config::parse_from_cli();
+
+    supr::run(config)?;
+
+    Ok(())
 }
