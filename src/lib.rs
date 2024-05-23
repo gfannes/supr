@@ -1,31 +1,22 @@
+mod collect;
 pub mod config;
 mod data;
 mod fs;
+mod serve;
 pub mod util;
 
 use crate::util::Result;
 
 pub fn run(config: config::Config) -> Result<()> {
-    if config.do_log(2) {
-        println!("{:?}", config);
-    }
+    let verbose = &config.verbose();
 
-    let mut file_info = data::FileInfo::new();
-
-    {
-        let tree = fs::Tree::new(config.root()?);
-        for path in &tree {
-            if config.do_log(1) {
-                println!("Loading {}", path.display());
-            }
-            file_info.add(config.root()?, path)?;
-        }
+    match &config.command {
+        None => {}
+        Some(command) => match command {
+            config::Command::Collect => collect::collect(&config.root()?, verbose)?,
+            config::Command::Serve { ip, port } => serve::serve(ip, *port, verbose)?,
+        },
     }
-
-    if config.do_log(2) {
-        println!("{:?}", &file_info);
-    }
-    println!("Total byte count: {}", file_info.total_byte_count());
 
     Ok(())
 }
