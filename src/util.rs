@@ -25,14 +25,31 @@ impl Error {
     }
 }
 
+#[macro_export]
 macro_rules! fail {
     ($fmt:expr) => {
-        return Err(Error::create(&format!($fmt)))
+        return Err(crate::util::Error::create(&format!($fmt)))
     };
     ($fmt:expr, $($args:expr),*) => {
         return Err(Error::create(&format!($fmt, $($args),*)))
     };
     ($fmt:expr, $($args:expr),+ ,) => {
         fail!($fmt, $($args),*)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fail() -> Result<()> {
+        let lambda = || -> Result<()> {
+            fail!("failure");
+        };
+        match lambda() {
+            Ok(()) => Err(Error::create("Expected Err")),
+            Err(_) => Ok(()),
+        }
     }
 }

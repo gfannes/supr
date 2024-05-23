@@ -1,3 +1,4 @@
+use crate::fail;
 use crate::util::{Error, Result};
 use clap::Parser;
 use std::path::PathBuf;

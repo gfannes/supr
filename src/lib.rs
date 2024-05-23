@@ -1,8 +1,7 @@
-#[macro_use]
-pub mod util;
 pub mod config;
 mod data;
 mod fs;
+pub mod util;
 
 use crate::util::Result;
 
