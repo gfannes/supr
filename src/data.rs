@@ -1,3 +1,4 @@
+use crate::config::Logger;
 use crate::util::Result;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -59,12 +60,21 @@ impl FileInfo {
         }
     }
 
-    pub fn add(&mut self, dir: impl AsRef<Path>, rel: impl AsRef<Path>) -> Result<()> {
+    pub fn add(
+        &mut self,
+        dir: impl AsRef<Path>,
+        rel: impl AsRef<Path>,
+        logger: &Logger,
+    ) -> Result<()> {
         let fp = dir.as_ref().join(rel.as_ref());
         let file_size = std::fs::metadata(&fp)?.len();
 
-        // let hash = self.compute_hash_slow(fp)?;
-        let hash = self.compute_hash_fast(&fp)?;
+        let hash;
+        if true {
+            hash = self.compute_hash_fast(&fp)?;
+        } else {
+            hash = self.compute_hash_slow(&fp)?;
+        }
 
         let info = self.hash2info.entry(hash.clone()).or_insert(Info {
             paths: vec![],
@@ -81,9 +91,11 @@ impl FileInfo {
 
         let msg = bincode::serialize(info)?;
         let clone: Info = bincode::deserialize(&msg)?;
-        println!("msg: {} {}", msg.len(), hex::encode(&msg));
-        println!("info: {:?}", info);
-        println!("clone: {:?}", clone);
+        logger.log(2, || {
+            println!("msg: {} {}", msg.len(), hex::encode(&msg));
+            println!("info: {:?}", info);
+            println!("clone: {:?}", clone);
+        });
 
         Ok(())
     }
@@ -130,7 +142,7 @@ mod tests {
     #[test]
     fn test_new() {
         let mut fi = FileInfo::new();
-        fi.add(".", "Cargo.toml").unwrap();
+        fi.add(".", "Cargo.toml", &Logger::new()).unwrap();
         println!("{:?}", fi);
     }
 }

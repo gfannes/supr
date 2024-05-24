@@ -18,7 +18,7 @@ pub struct Config {
     pub include_ignored: bool,
 
     #[arg(short, long, default_value_t = 0)]
-    verbose_level: i32,
+    verbose: i32,
 
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -27,12 +27,25 @@ pub struct Config {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     Collect,
+    Run {
+        #[arg(short = 'i', long, default_value_t = String::from("localhost"))]
+        ip: String,
+
+        #[arg(short = 'p', long, default_value_t = 1234)]
+        port: u32,
+
+        #[arg(short, long, default_value_t = 0)]
+        verbose: i32,
+    },
     Serve {
         #[arg(short = 'i', long, default_value_t = String::from("localhost"))]
         ip: String,
 
         #[arg(short = 'p', long, default_value_t = 1234)]
         port: u32,
+
+        #[arg(short, long, default_value_t = 0)]
+        verbose: i32,
     },
 }
 
@@ -60,23 +73,28 @@ impl Config {
         Ok(path_buf)
     }
 
-    pub fn verbose(&self) -> Verbose {
-        Verbose {
-            level: self.verbose_level,
+    pub fn logger(&self) -> Logger {
+        Logger {
+            level: self.verbose,
         }
-    }
-
-    pub fn do_log(&self, level: i32) -> bool {
-        self.verbose().do_log(level)
     }
 }
 
-pub struct Verbose {
+pub struct Logger {
     level: i32,
 }
 
-impl Verbose {
-    pub fn do_log(&self, level: i32) -> bool {
-        self.level >= level
+impl Logger {
+    pub fn new() -> Logger {
+        Logger { level: 0 }
+    }
+    pub fn update_level(&mut self, level: i32) -> &Logger {
+        self.level = std::cmp::max(self.level, level);
+        self
+    }
+    pub fn log(&self, level: i32, cb: impl FnOnce() -> ()) {
+        if self.level >= level {
+            cb();
+        }
     }
 }
