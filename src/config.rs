@@ -26,7 +26,10 @@ pub struct Config {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    Collect,
+    Collect {
+        #[arg(short, long, default_value_t = 0)]
+        verbose: i32,
+    },
     Run {
         #[arg(short = 'i', long, default_value_t = String::from("localhost"))]
         ip: String,

@@ -14,7 +14,9 @@ pub fn run(config: config::Config) -> Result<()> {
     match &config.command {
         None => {}
         Some(command) => match command {
-            config::Command::Collect => collect::collect(&config.root()?, &logger)?,
+            config::Command::Collect { verbose } => {
+                collect::collect(&config.root()?, &logger.update_level(*verbose))?
+            }
             config::Command::Run { ip, port, verbose } => {
                 run::run(ip, *port, &logger.update_level(*verbose))?
             }

@@ -1,16 +1,17 @@
 use crate::config::Logger;
+use crate::fail;
 use crate::util::Result;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 // Sha256 is a bit faster than Sha1, apparently
 type Sha = sha2::Sha256;
 type Bytes = [u8; 32];
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
 pub struct Hash {
     bytes: Bytes,
 }
@@ -41,12 +42,17 @@ impl std::fmt::Debug for Hash {
 struct Info {
     paths: Vec<std::path::PathBuf>,
     content_size: usize,
-    content: Vec<u8>,
 }
+
+// HashMap seems 10% faster: not too much
+// type MyMap = HashMap<Hash, Info>;
+type MyMap = BTreeMap<Hash, Info>;
 
 #[derive(Debug)]
 pub struct FileInfo {
-    hash2info: HashMap<Hash, Info>,
+    root: Option<PathBuf>,
+    // hash2info: HashMap<Hash, Info>,
+    hash2info: MyMap,
     buffer: Vec<u8>,
     sha: Sha,
 }
@@ -54,7 +60,8 @@ pub struct FileInfo {
 impl FileInfo {
     pub fn new() -> FileInfo {
         FileInfo {
-            hash2info: HashMap::new(),
+            root: None,
+            hash2info: MyMap::new(),
             buffer: vec![0; 128 * 1024],
             sha: Sha::new(),
         }
@@ -62,11 +69,28 @@ impl FileInfo {
 
     pub fn add(
         &mut self,
-        dir: impl AsRef<Path>,
+        root: impl AsRef<Path>,
         rel: impl AsRef<Path>,
         logger: &Logger,
     ) -> Result<()> {
-        let fp = dir.as_ref().join(rel.as_ref());
+        logger.log(2, || {
+            println!(
+                "root: {}, rel: {}",
+                root.as_ref().display(),
+                rel.as_ref().display()
+            )
+        });
+
+        match &self.root {
+            None => self.root = Some(root.as_ref().to_owned()),
+            Some(my_root) => {
+                if root.as_ref() != my_root.as_path() {
+                    fail!("Root should be set the same");
+                }
+            }
+        }
+
+        let fp = root.as_ref().join(rel.as_ref());
         let file_size = std::fs::metadata(&fp)?.len();
 
         let hash;
@@ -80,14 +104,9 @@ impl FileInfo {
             paths: vec![],
             // size: content.len(),
             content_size: file_size as usize,
-            content: vec![],
         });
 
-        if true {
-            info.content = std::fs::read(fp)?;
-        }
-
-        info.paths.push(rel.as_ref().to_path_buf());
+        info.paths.push(rel.as_ref().to_owned());
 
         let msg = bincode::serialize(info)?;
         let clone: Info = bincode::deserialize(&msg)?;
@@ -106,6 +125,28 @@ impl FileInfo {
             count += info.content_size;
         }
         count
+    }
+
+    pub fn to_naft(&self, mut sink: impl Write) -> Result<()> {
+        write!(sink, "[FileInfo](total_size:{})", self.total_byte_count())?;
+        if let Some(root) = &self.root {
+            write!(sink, "(root:{})", root.display())?;
+        }
+        writeln!(sink, "{{")?;
+        for (hash, info) in &self.hash2info {
+            writeln!(
+                sink,
+                "\t[Info](hash:{})(size:{}){{",
+                hex::encode(hash.bytes),
+                info.content_size
+            )?;
+            for path in &info.paths {
+                writeln!(sink, "\t\t[Path](rel:{})", path.display())?;
+            }
+            writeln!(sink, "\t}}")?;
+        }
+        writeln!(sink, "}}")?;
+        Ok(())
     }
 
     fn compute_hash_slow(&mut self, fp: impl AsRef<Path>) -> Result<Hash> {

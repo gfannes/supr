@@ -3,6 +3,7 @@ use crate::data;
 use crate::fs;
 use crate::util::Result;
 
+use std::io;
 use std::path::Path;
 
 pub fn collect(root: &Path, logger: &Logger) -> Result<()> {
@@ -14,10 +15,9 @@ pub fn collect(root: &Path, logger: &Logger) -> Result<()> {
         file_info.add(root, path, logger)?;
     }
 
-    logger.log(2, || println!("{:?}", &file_info));
-    logger.log(0, || {
-        println!("Total byte count: {}", file_info.total_byte_count())
-    });
+    file_info.to_naft(io::stdout())?;
+
+    logger.log(3, || println!("{:?}", &file_info));
 
     Ok(())
 }
