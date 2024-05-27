@@ -12,13 +12,15 @@ impl Collect {
     }
 
     pub fn run(&self, logger: &log::Logger) -> util::Result<data::FileInfo> {
-        let mut file_info = data::FileInfo::new();
+        let mut builder = data::Builder::new(&self.root);
 
         let tree = fs::Tree::new(&self.root);
         for path in &tree {
             logger.log(1, || println!("Loading {}", path.display()));
-            file_info.add(&self.root, path, logger)?;
+            builder.add(path, logger)?;
         }
+
+        let file_info = builder.build();
 
         logger.log(3, || println!("{:?}", &file_info));
 

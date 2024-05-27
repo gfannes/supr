@@ -1,6 +1,5 @@
-use crate::{log, util};
+use crate::{data, log, util};
 
-use std::io::Read;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 
 pub struct Serve {
@@ -37,22 +36,14 @@ impl Serve {
 }
 
 fn handle_connection(
-    mut stream: TcpStream,
+    stream: TcpStream,
     sock_address: SocketAddr,
     logger: &log::Logger,
 ) -> util::Result<()> {
     logger.log(1, || println!("Received connection from {}", sock_address));
 
-    let mut buffer = [0 as u8; 1024];
-
     loop {
-        let size = stream.read(&mut buffer)?;
-        logger.log(2, || {
-            println!("Received {size} bytes: {}", hex::encode(&buffer[0..size]))
-        });
-        if size == 0 {
-            logger.log(2, || println!("Done"));
-            return Ok(());
-        }
+        let file_info: data::FileInfo = bincode::deserialize_from(&stream)?;
+        file_info.to_naft(std::io::stdout())?;
     }
 }

@@ -1,4 +1,4 @@
-use crate::{fail, log, util};
+use crate::{log, util};
 
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 type Sha = sha2::Sha256;
 type Bytes = [u8; 32];
 
-#[derive(PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, Hash, Clone, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Hash {
     bytes: Bytes,
 }
@@ -47,77 +47,14 @@ struct Info {
 // type MyMap = HashMap<Hash, Info>;
 type MyMap = BTreeMap<Hash, Info>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct FileInfo {
-    root: Option<PathBuf>,
+    root: PathBuf,
     // hash2info: HashMap<Hash, Info>,
     hash2info: MyMap,
-    buffer: Vec<u8>,
-    sha: Sha,
 }
 
 impl FileInfo {
-    pub fn new() -> FileInfo {
-        FileInfo {
-            root: None,
-            hash2info: MyMap::new(),
-            buffer: vec![0; 128 * 1024],
-            sha: Sha::new(),
-        }
-    }
-
-    pub fn add(
-        &mut self,
-        root: impl AsRef<Path>,
-        rel: impl AsRef<Path>,
-        logger: &log::Logger,
-    ) -> util::Result<()> {
-        logger.log(2, || {
-            println!(
-                "root: {}, rel: {}",
-                root.as_ref().display(),
-                rel.as_ref().display()
-            )
-        });
-
-        match &self.root {
-            None => self.root = Some(root.as_ref().to_owned()),
-            Some(my_root) => {
-                if root.as_ref() != my_root.as_path() {
-                    fail!("Root should be set the same");
-                }
-            }
-        }
-
-        let fp = root.as_ref().join(rel.as_ref());
-        let file_size = std::fs::metadata(&fp)?.len();
-
-        let hash;
-        if true {
-            hash = self.compute_hash_fast(&fp)?;
-        } else {
-            hash = self.compute_hash_slow(&fp)?;
-        }
-
-        let info = self.hash2info.entry(hash.clone()).or_insert(Info {
-            paths: vec![],
-            // size: content.len(),
-            content_size: file_size as usize,
-        });
-
-        info.paths.push(rel.as_ref().to_owned());
-
-        let msg = bincode::serialize(info)?;
-        let clone: Info = bincode::deserialize(&msg)?;
-        logger.log(2, || {
-            println!("msg: {} {}", msg.len(), hex::encode(&msg));
-            println!("info: {:?}", info);
-            println!("clone: {:?}", clone);
-        });
-
-        Ok(())
-    }
-
     pub fn total_byte_count(&self) -> usize {
         let mut count = 0;
         for (_, info) in &self.hash2info {
@@ -127,10 +64,12 @@ impl FileInfo {
     }
 
     pub fn to_naft(&self, mut sink: impl Write) -> util::Result<()> {
-        write!(sink, "[FileInfo](total_size:{})", self.total_byte_count())?;
-        if let Some(root) = &self.root {
-            write!(sink, "(root:{})", root.display())?;
-        }
+        write!(
+            sink,
+            "[FileInfo](total_size:{})(root:{})",
+            self.total_byte_count(),
+            &self.root.display()
+        )?;
         writeln!(sink, "{{")?;
         for (hash, info) in &self.hash2info {
             writeln!(
@@ -145,6 +84,57 @@ impl FileInfo {
             writeln!(sink, "\t}}")?;
         }
         writeln!(sink, "}}")?;
+        Ok(())
+    }
+}
+
+pub struct Builder {
+    file_info: FileInfo,
+    buffer: Vec<u8>,
+    sha: Sha,
+}
+
+impl Builder {
+    pub fn new(root: impl Into<PathBuf>) -> Builder {
+        Builder {
+            file_info: FileInfo {
+                root: root.into(),
+                hash2info: MyMap::new(),
+            },
+            buffer: vec![0; 128 * 1024],
+            sha: Sha::new(),
+        }
+    }
+
+    pub fn build(&mut self) -> FileInfo {
+        std::mem::take(&mut self.file_info)
+    }
+
+    pub fn add(&mut self, rel: impl AsRef<Path>, logger: &log::Logger) -> util::Result<()> {
+        logger.log(2, || println!("rel: {}", rel.as_ref().display()));
+
+        let fp = self.file_info.root.join(rel.as_ref());
+        let file_size = std::fs::metadata(&fp)?.len();
+
+        let hash;
+        if true {
+            hash = self.compute_hash_fast(&fp)?;
+        } else {
+            hash = self.compute_hash_slow(&fp)?;
+        }
+
+        let info = self
+            .file_info
+            .hash2info
+            .entry(hash.clone())
+            .or_insert(Info {
+                paths: vec![],
+                // size: content.len(),
+                content_size: file_size as usize,
+            });
+
+        info.paths.push(rel.as_ref().to_owned());
+
         Ok(())
     }
 
@@ -181,8 +171,9 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let mut fi = FileInfo::new();
-        fi.add(".", "Cargo.toml", &log::Logger::new(0)).unwrap();
-        println!("{:?}", fi);
+        let mut builder = Builder::new(".");
+        builder.add("Cargo.toml", &log::Logger::new(0)).unwrap();
+        let file_info = builder.build();
+        println!("{:?}", file_info);
     }
 }

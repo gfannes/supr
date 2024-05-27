@@ -94,7 +94,8 @@ impl TryFrom<&Config> for run::Run {
     type Error = Box<dyn std::error::Error>;
     fn try_from(config: &Config) -> util::Result<run::Run> {
         if let Some(Command::Run { ip, port, .. }) = &config.command {
-            let run = run::Run::new(ip, *port);
+            let collect = collect::Collect::try_from(config)?;
+            let run = run::Run::new(ip, *port, collect);
             Ok(run)
         } else {
             fail!("Expected Command::Run");
