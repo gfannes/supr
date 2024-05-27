@@ -4,6 +4,7 @@ pub mod config;
 mod data;
 mod fs;
 mod log;
+pub mod naft;
 mod run;
 mod serve;
 pub mod util;
