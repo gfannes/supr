@@ -31,7 +31,7 @@ macro_rules! fail {
         return Err(crate::util::Error::create(&format!($fmt)))
     };
     ($fmt:expr, $($args:expr),*) => {
-        return Err(Error::create(&format!($fmt, $($args),*)))
+        return Err(crate::util::Error::create(&format!($fmt, $($args),*)))
     };
     ($fmt:expr, $($args:expr),+ ,) => {
         fail!($fmt, $($args),*)

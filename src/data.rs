@@ -1,6 +1,5 @@
-use crate::config::Logger;
-use crate::fail;
-use crate::util::Result;
+use crate::{fail, log, util};
+
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::{BTreeMap, HashMap};
@@ -71,8 +70,8 @@ impl FileInfo {
         &mut self,
         root: impl AsRef<Path>,
         rel: impl AsRef<Path>,
-        logger: &Logger,
-    ) -> Result<()> {
+        logger: &log::Logger,
+    ) -> util::Result<()> {
         logger.log(2, || {
             println!(
                 "root: {}, rel: {}",
@@ -127,7 +126,7 @@ impl FileInfo {
         count
     }
 
-    pub fn to_naft(&self, mut sink: impl Write) -> Result<()> {
+    pub fn to_naft(&self, mut sink: impl Write) -> util::Result<()> {
         write!(sink, "[FileInfo](total_size:{})", self.total_byte_count())?;
         if let Some(root) = &self.root {
             write!(sink, "(root:{})", root.display())?;
@@ -149,7 +148,7 @@ impl FileInfo {
         Ok(())
     }
 
-    fn compute_hash_slow(&mut self, fp: impl AsRef<Path>) -> Result<Hash> {
+    fn compute_hash_slow(&mut self, fp: impl AsRef<Path>) -> util::Result<Hash> {
         let content = std::fs::read(&fp)?;
 
         self.sha.update(&content);
@@ -158,7 +157,7 @@ impl FileInfo {
         Ok(hash)
     }
 
-    fn compute_hash_fast(&mut self, fp: impl AsRef<Path>) -> Result<Hash> {
+    fn compute_hash_fast(&mut self, fp: impl AsRef<Path>) -> util::Result<Hash> {
         let mut f = std::fs::File::open(fp)?;
         let mut size = f.metadata()?.len();
 
@@ -183,7 +182,7 @@ mod tests {
     #[test]
     fn test_new() {
         let mut fi = FileInfo::new();
-        fi.add(".", "Cargo.toml", &Logger::new()).unwrap();
+        fi.add(".", "Cargo.toml", &log::Logger::new(0)).unwrap();
         println!("{:?}", fi);
     }
 }

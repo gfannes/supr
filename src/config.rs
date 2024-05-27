@@ -1,5 +1,5 @@
-use crate::fail;
-use crate::util::{Error, Result};
+use crate::{collect, fail, log, run, serve, util};
+
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -27,8 +27,8 @@ pub struct Config {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     Collect {
-        #[arg(short, long, default_value_t = 0)]
-        verbose: i32,
+        #[arg(short, long)]
+        verbose: Option<i32>,
     },
     Run {
         #[arg(short = 'i', long, default_value_t = String::from("localhost"))]
@@ -37,8 +37,8 @@ pub enum Command {
         #[arg(short = 'p', long, default_value_t = 1234)]
         port: u32,
 
-        #[arg(short, long, default_value_t = 0)]
-        verbose: i32,
+        #[arg(short, long)]
+        verbose: Option<i32>,
     },
     Serve {
         #[arg(short = 'i', long, default_value_t = String::from("localhost"))]
@@ -47,8 +47,8 @@ pub enum Command {
         #[arg(short = 'p', long, default_value_t = 1234)]
         port: u32,
 
-        #[arg(short, long, default_value_t = 0)]
-        verbose: i32,
+        #[arg(short, long)]
+        verbose: Option<i32>,
     },
 }
 
@@ -57,7 +57,7 @@ impl Config {
         clap::Parser::parse()
     }
 
-    pub fn root(&self) -> Result<PathBuf> {
+    pub fn root(&self) -> util::Result<PathBuf> {
         let path_buf;
         match &self.root {
             None => path_buf = std::env::current_dir()?,
@@ -76,28 +76,61 @@ impl Config {
         Ok(path_buf)
     }
 
-    pub fn logger(&self) -> Logger {
-        Logger {
-            level: self.verbose,
+    pub fn logger(&self) -> log::Logger {
+        log::Logger::new(self.verbose)
+    }
+}
+
+// Conversion
+impl TryFrom<&Config> for collect::Collect {
+    type Error = Box<dyn std::error::Error>;
+    fn try_from(config: &Config) -> util::Result<collect::Collect> {
+        let collect = collect::Collect::new(config.root()?);
+        Ok(collect)
+    }
+}
+
+impl TryFrom<&Config> for run::Run {
+    type Error = Box<dyn std::error::Error>;
+    fn try_from(config: &Config) -> util::Result<run::Run> {
+        if let Some(Command::Run { ip, port, .. }) = &config.command {
+            let run = run::Run::new(ip, *port);
+            Ok(run)
+        } else {
+            fail!("Expected Command::Run");
         }
     }
 }
 
-pub struct Logger {
-    level: i32,
+impl TryFrom<&Config> for serve::Serve {
+    type Error = Box<dyn std::error::Error>;
+    fn try_from(config: &Config) -> util::Result<serve::Serve> {
+        if let Some(Command::Serve { ip, port, .. }) = &config.command {
+            let run = serve::Serve::new(ip, *port);
+            Ok(run)
+        } else {
+            fail!("Expected Command::Serve");
+        }
+    }
 }
 
-impl Logger {
-    pub fn new() -> Logger {
-        Logger { level: 0 }
-    }
-    pub fn update_level(&mut self, level: i32) -> &Logger {
-        self.level = std::cmp::max(self.level, level);
-        self
-    }
-    pub fn log(&self, level: i32, cb: impl FnOnce() -> ()) {
-        if self.level >= level {
-            cb();
+impl From<&Config> for log::Logger {
+    fn from(config: &Config) -> log::Logger {
+        let mut logger = log::Logger::new(config.verbose);
+
+        match &config.command {
+            None => {}
+            Some(command) => {
+                let level;
+                match command {
+                    Command::Collect { verbose } => level = verbose,
+                    Command::Run { verbose, .. } => level = verbose,
+                    Command::Serve { verbose, .. } => level = verbose,
+                }
+                logger.update_level(level);
+            }
         }
+
+        logger
     }
 }

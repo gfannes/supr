@@ -1,11 +1,12 @@
-use supr::util::Result;
+use supr::{app, config, util};
 
-fn main() -> Result<()> {
-    let config = supr::config::Config::parse_from_cli();
+fn main() -> util::Result<()> {
+    let config = config::Config::parse_from_cli();
 
     config.logger().log(2, || println!("{:?}", config));
 
-    supr::run(config)?;
+    let app = app::App::new(config);
+    app.run()?;
 
     Ok(())
 }

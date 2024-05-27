@@ -1,15 +1,21 @@
-use crate::config::Logger;
-use crate::util::Result;
-use std::io::Write;
-use std::net::TcpStream;
+use crate::{log, util};
 
-pub fn run(ip: &str, port: u32, logger: &Logger) -> Result<()> {
-    logger.log(2, || println!("run({ip}, {port})"));
+pub struct Run {
+    ip: String,
+    port: u32,
+}
 
-    let ip_port = format!("{ip}:{port}");
+impl Run {
+    pub fn new(ip: impl Into<String>, port: u32) -> Run {
+        Run {
+            ip: ip.into(),
+            port,
+        }
+    }
 
-    let mut stream = TcpStream::connect(ip_port)?;
-    stream.write("Hello".as_bytes())?;
+    pub fn run(&self, logger: &log::Logger) -> util::Result<()> {
+        logger.log(2, || println!("run({}, {})", &self.ip, self.port));
 
-    Ok(())
+        Ok(())
+    }
 }

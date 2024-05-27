@@ -1,21 +1,37 @@
-use crate::config::Logger;
-use crate::util::Result;
+use crate::{log, util};
+
 use std::io::Read;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 
-pub fn serve(ip: &str, port: u32, logger: &Logger) -> Result<()> {
-    logger.log(2, || println!("serve({ip}, {port})"));
+pub struct Serve {
+    ip: String,
+    port: u32,
+}
 
-    let ip_port = format!("{ip}:{port}");
+impl Serve {
+    pub fn new(ip: impl Into<String>, port: u32) -> Serve {
+        Serve {
+            ip: ip.into(),
+            port,
+        }
+    }
 
-    let listener = TcpListener::bind(ip_port)?;
+    pub fn run(&self, logger: &log::Logger) -> util::Result<()> {
+        logger.log(2, || println!("serve({}, {})", &self.ip, self.port));
 
-    loop {
-        logger.log(1, || println!("Waiting for incoming connection..."));
+        let ip_port = format!("{}:{}", &self.ip, self.port);
 
-        match listener.accept() {
-            Ok((tcp_stream, sock_address)) => handle_connection(tcp_stream, sock_address, logger)?,
-            Err(err) => return Err(Box::from(err)),
+        let listener = TcpListener::bind(ip_port)?;
+
+        loop {
+            logger.log(1, || println!("Waiting for incoming connection..."));
+
+            match listener.accept() {
+                Ok((tcp_stream, sock_address)) => {
+                    handle_connection(tcp_stream, sock_address, logger)?
+                }
+                Err(err) => return Err(Box::from(err)),
+            }
         }
     }
 }
@@ -23,8 +39,8 @@ pub fn serve(ip: &str, port: u32, logger: &Logger) -> Result<()> {
 fn handle_connection(
     mut stream: TcpStream,
     sock_address: SocketAddr,
-    logger: &Logger,
-) -> Result<()> {
+    logger: &log::Logger,
+) -> util::Result<()> {
     logger.log(1, || println!("Received connection from {}", sock_address));
 
     let mut buffer = [0 as u8; 1024];

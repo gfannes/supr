@@ -1,23 +1,37 @@
-use crate::config::Logger;
-use crate::data;
-use crate::fs;
-use crate::util::Result;
+use crate::{data, fs, log, util};
 
-use std::io;
-use std::path::Path;
+use std::path::PathBuf;
 
-pub fn collect(root: &Path, logger: &Logger) -> Result<()> {
-    let mut file_info = data::FileInfo::new();
+pub struct Collect {
+    root: PathBuf,
+}
 
-    let tree = fs::Tree::new(root.to_path_buf());
-    for path in &tree {
-        logger.log(1, || println!("Loading {}", path.display()));
-        file_info.add(root, path, logger)?;
+impl Collect {
+    pub fn new(root: impl Into<PathBuf>) -> Collect {
+        Collect { root: root.into() }
     }
 
-    file_info.to_naft(io::stdout())?;
+    pub fn run(&self, logger: &log::Logger) -> util::Result<data::FileInfo> {
+        let mut file_info = data::FileInfo::new();
 
-    logger.log(3, || println!("{:?}", &file_info));
+        let tree = fs::Tree::new(&self.root);
+        for path in &tree {
+            logger.log(1, || println!("Loading {}", path.display()));
+            file_info.add(&self.root, path, logger)?;
+        }
 
-    Ok(())
+        logger.log(3, || println!("{:?}", &file_info));
+
+        Ok(file_info)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_collect() -> util::Result<()> {
+        Ok(())
+    }
 }

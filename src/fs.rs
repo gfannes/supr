@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct Tree {
     path: PathBuf,
@@ -7,9 +7,9 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn new(path: PathBuf) -> Tree {
+    pub fn new(path: impl AsRef<Path>) -> Tree {
         Tree {
-            path,
+            path: path.as_ref().to_owned(),
             include_hidden: false,
             include_ignored: false,
         }
