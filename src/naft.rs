@@ -196,14 +196,14 @@ where
         self.buf_writer.flush()?;
         Ok(())
     }
-    pub fn get_mut(&mut self) -> &mut W {
-        self.buf_writer.get_mut()
+    pub fn get_mut(&mut self) -> util::Result<&mut W> {
+        self.flush()?;
+        Ok(self.buf_writer.get_mut())
     }
 
     pub fn node<'a>(&'a mut self, tag: &str) -> util::Result<Node<'a, W>> {
-        self.buf_writer.write(tag.as_bytes())?;
-        self.buf_writer.write("{".as_bytes())?;
-        Ok(Node { writer: self })
+        self.buf_writer.write(format!("[{}]", tag).as_bytes())?;
+        Ok(Node::new(self))
     }
 }
 
@@ -212,6 +212,31 @@ where
     W: Write,
 {
     writer: &'a mut Writer<W>,
+    has_block: bool,
+}
+
+impl<'a, W> Node<'a, W>
+where
+    W: Write,
+{
+    fn new(writer: &'a mut Writer<W>) -> Self {
+        Self {
+            writer,
+            has_block: false,
+        }
+    }
+    pub fn attr(&mut self, key: &str, value: &str) -> util::Result<&mut Self> {
+        self.writer
+            .buf_writer
+            .write(format!("({}:{})", key, value).as_bytes())?;
+        Ok(self)
+    }
+    pub fn key(&mut self, key: &str) -> util::Result<&mut Self> {
+        self.writer
+            .buf_writer
+            .write(format!("({})", key).as_bytes())?;
+        Ok(self)
+    }
 }
 
 impl<'a, W> Drop for Node<'a, W>
@@ -219,7 +244,9 @@ where
     W: Write,
 {
     fn drop(&mut self) {
-        let _ = self.writer.buf_writer.write("}".as_bytes());
+        if self.has_block {
+            let _ = self.writer.buf_writer.write("}".as_bytes());
+        }
     }
 }
 
@@ -245,16 +272,16 @@ mod tests {
 
     #[test]
     fn test_write() -> util::Result<()> {
-        let mut buf = Vec::<u8>::new();
-        // let mut buf = std::io::stdout();
+        let buf = Vec::<u8>::new();
         let mut w = Writer::new(buf);
         {
-            let mut n = w.node("abc");
+            let mut n = w.node("abc")?;
+            n.attr("k", "v")?.key("key")?;
         }
 
-        w.flush()?;
-        let buf = w.get_mut();
+        let buf = w.get_mut()?;
         println!("{}", std::str::from_utf8(buf)?);
+
         Ok(())
     }
 }
