@@ -1,6 +1,6 @@
 use crate::{fail, util};
 
-use std::io::{BufReader, Read};
+use std::io::{BufReader, BufWriter, Read, Write};
 
 #[derive(Debug)]
 pub enum Event {
@@ -29,7 +29,7 @@ impl<R> Reader<R>
 where
     R: Read,
 {
-    pub fn new(read: R) -> Reader<R> {
+    pub fn new(read: R) -> Self {
         Reader {
             buf_reader: BufReader::new(read),
             buffer: Vec::new(),
@@ -175,6 +175,54 @@ where
     }
 }
 
+pub struct Writer<W>
+where
+    W: Write,
+{
+    buf_writer: BufWriter<W>,
+}
+
+impl<W> Writer<W>
+where
+    W: Write,
+{
+    pub fn new(write: W) -> Self {
+        Writer {
+            buf_writer: BufWriter::new(write),
+        }
+    }
+
+    pub fn flush(&mut self) -> util::Result<()> {
+        self.buf_writer.flush()?;
+        Ok(())
+    }
+    pub fn get_mut(&mut self) -> &mut W {
+        self.buf_writer.get_mut()
+    }
+
+    pub fn node<'a>(&'a mut self, tag: &str) -> util::Result<Node<'a, W>> {
+        self.buf_writer.write(tag.as_bytes())?;
+        self.buf_writer.write("{".as_bytes())?;
+        Ok(Node { writer: self })
+    }
+}
+
+pub struct Node<'a, W>
+where
+    W: Write,
+{
+    writer: &'a mut Writer<W>,
+}
+
+impl<'a, W> Drop for Node<'a, W>
+where
+    W: Write,
+{
+    fn drop(&mut self) {
+        let _ = self.writer.buf_writer.write("}".as_bytes());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +241,20 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn test_write() -> util::Result<()> {
+        let mut buf = Vec::<u8>::new();
+        // let mut buf = std::io::stdout();
+        let mut w = Writer::new(buf);
+        {
+            let mut n = w.node("abc");
+        }
+
+        w.flush()?;
+        let buf = w.get_mut();
+        println!("{}", std::str::from_utf8(buf)?);
+        Ok(())
     }
 }
