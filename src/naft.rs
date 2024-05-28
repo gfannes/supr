@@ -196,6 +196,7 @@ where
         self.buf_writer.flush()?;
         Ok(())
     }
+
     pub fn get_mut(&mut self) -> util::Result<&mut W> {
         self.flush()?;
         Ok(self.buf_writer.get_mut())
@@ -203,7 +204,7 @@ where
 
     pub fn node<'a>(&'a mut self, tag: &str) -> util::Result<Node<'a, W>> {
         self.buf_writer.write(format!("[{}]", tag).as_bytes())?;
-        Ok(Node::new(self))
+        Ok(Node::new(self, 1))
     }
 }
 
@@ -213,16 +214,18 @@ where
 {
     writer: &'a mut Writer<W>,
     has_block: bool,
+    depth: usize,
 }
 
 impl<'a, W> Node<'a, W>
 where
     W: Write,
 {
-    fn new(writer: &'a mut Writer<W>) -> Self {
+    fn new(writer: &'a mut Writer<W>, depth: usize) -> Self {
         Self {
             writer,
             has_block: false,
+            depth,
         }
     }
     pub fn attr(&mut self, key: &str, value: &str) -> util::Result<&mut Self> {
@@ -237,6 +240,17 @@ where
             .write(format!("({})", key).as_bytes())?;
         Ok(self)
     }
+
+    pub fn node<'b>(&'b mut self, tag: &str) -> util::Result<Node<'b, W>> {
+        if !self.has_block {
+            self.writer.buf_writer.write("{".as_bytes())?;
+            self.has_block = true;
+        }
+        self.writer
+            .buf_writer
+            .write(format!("\n{}[{}]", indent(self.depth), tag).as_bytes())?;
+        Ok(Node::new(self.writer, self.depth + 1))
+    }
 }
 
 impl<'a, W> Drop for Node<'a, W>
@@ -245,9 +259,16 @@ where
 {
     fn drop(&mut self) {
         if self.has_block {
-            let _ = self.writer.buf_writer.write("}".as_bytes());
+            let _ = self
+                .writer
+                .buf_writer
+                .write(format!("\n{}}}", indent(self.depth - 1)).as_bytes());
         }
     }
+}
+
+fn indent(depth: usize) -> String {
+    "  ".repeat(depth)
 }
 
 #[cfg(test)]
@@ -274,13 +295,26 @@ mod tests {
     fn test_write() -> util::Result<()> {
         let buf = Vec::<u8>::new();
         let mut w = Writer::new(buf);
+
         {
-            let mut n = w.node("abc")?;
-            n.attr("k", "v")?.key("key")?;
+            let mut n0 = w.node("n0")?;
+            n0.attr("k", "v")?.key("key")?;
+            {
+                let mut n00 = n0.node("n00")?;
+                n00.attr("K", "V")?;
+            }
+            {
+                let mut n01 = n0.node("n01")?;
+                n01.attr("K", "V")?;
+            }
         }
 
         let buf = w.get_mut()?;
         println!("{}", std::str::from_utf8(buf)?);
+        assert_eq!(
+            "[n0](k:v)(key){\n  [n00](K:V)\n  [n01](K:V)\n}",
+            std::str::from_utf8(buf)?
+        );
 
         Ok(())
     }
