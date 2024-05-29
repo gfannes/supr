@@ -215,6 +215,7 @@ where
     writer: &'a mut Writer<W>,
     has_block: bool,
     depth: usize,
+    tmp: Vec<u8>,
 }
 
 impl<'a, W> Node<'a, W>
@@ -226,6 +227,7 @@ where
             writer,
             has_block: false,
             depth,
+            tmp: Vec::new(),
         }
     }
     pub fn attr(&mut self, key: &str, value: &str) -> util::Result<&mut Self> {
@@ -251,6 +253,18 @@ where
             .write(format!("\n{}[{}]", indent(self.depth), tag).as_bytes())?;
         Ok(Node::new(self.writer, self.depth + 1))
     }
+
+    fn escape(&mut self, v: &mut Vec<u8>) {
+        let tmp = &mut self.tmp;
+        tmp.clear();
+        for b in v.iter() {
+            if b"[](){}\\".contains(b) {
+                tmp.push(b'\\');
+            }
+            tmp.push(*b);
+        }
+        std::mem::swap(v, tmp);
+    }
 }
 
 impl<'a, W> Drop for Node<'a, W>
@@ -274,6 +288,7 @@ fn indent(depth: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Empty;
 
     #[test]
     fn test_read() -> util::Result<()> {
@@ -316,6 +331,33 @@ mod tests {
             std::str::from_utf8(buf)?
         );
 
+        Ok(())
+    }
+
+    struct Scn {
+        inp: &'static [u8],
+        exp: &'static [u8],
+    }
+
+    #[test]
+    fn test_escape() -> util::Result<()> {
+        let mut w = Writer::new(std::io::empty());
+        let mut n = w.node("")?;
+        let scns = [
+            Scn {
+                inp: "abc".as_bytes(),
+                exp: "abc".as_bytes(),
+            },
+            Scn {
+                inp: "[](){}\\".as_bytes(),
+                exp: "\\[\\]\\(\\)\\{\\}\\\\".as_bytes(),
+            },
+        ];
+        for scn in scns {
+            let mut act = Vec::from(scn.inp);
+            n.escape(&mut act);
+            assert_eq!(act, scn.exp);
+        }
         Ok(())
     }
 }
