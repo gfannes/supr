@@ -180,6 +180,7 @@ where
     W: Write,
 {
     buf_writer: BufWriter<W>,
+    escape: Escape,
 }
 
 impl<W> Writer<W>
@@ -189,6 +190,7 @@ where
     pub fn new(write: W) -> Self {
         Writer {
             buf_writer: BufWriter::new(write),
+            escape: Escape::new(),
         }
     }
 
@@ -203,7 +205,10 @@ where
     }
 
     pub fn node<'a>(&'a mut self, tag: &str) -> util::Result<Node<'a, W>> {
-        self.buf_writer.write(format!("[{}]", tag).as_bytes())?;
+        let w = &mut self.buf_writer;
+        w.write(b"[")?;
+        w.write(self.escape.escape(tag.as_bytes()))?;
+        w.write(b"]")?;
         Ok(Node::new(self, 1))
     }
 }
@@ -215,7 +220,6 @@ where
     writer: &'a mut Writer<W>,
     has_block: bool,
     depth: usize,
-    tmp: Vec<u8>,
 }
 
 impl<'a, W> Node<'a, W>
@@ -227,43 +231,39 @@ where
             writer,
             has_block: false,
             depth,
-            tmp: Vec::new(),
         }
     }
     pub fn attr(&mut self, key: &str, value: &str) -> util::Result<&mut Self> {
-        self.writer
-            .buf_writer
-            .write(format!("({}:{})", key, value).as_bytes())?;
+        let w = &mut self.writer.buf_writer;
+        w.write(b"(")?;
+        w.write(key.as_bytes())?;
+        w.write(b":")?;
+        w.write(value.as_bytes())?;
+        w.write(b")")?;
         Ok(self)
     }
     pub fn key(&mut self, key: &str) -> util::Result<&mut Self> {
-        self.writer
-            .buf_writer
-            .write(format!("({})", key).as_bytes())?;
+        let w = &mut self.writer.buf_writer;
+        w.write(b"(")?;
+        w.write(key.as_bytes())?;
+        w.write(b")")?;
         Ok(self)
     }
 
     pub fn node<'b>(&'b mut self, tag: &str) -> util::Result<Node<'b, W>> {
+        let w = &mut self.writer.buf_writer;
+
         if !self.has_block {
-            self.writer.buf_writer.write("{".as_bytes())?;
+            w.write(b"{")?;
             self.has_block = true;
         }
-        self.writer
-            .buf_writer
-            .write(format!("\n{}[{}]", indent(self.depth), tag).as_bytes())?;
-        Ok(Node::new(self.writer, self.depth + 1))
-    }
 
-    fn escape(&mut self, v: &mut Vec<u8>) {
-        let tmp = &mut self.tmp;
-        tmp.clear();
-        for b in v.iter() {
-            if b"[](){}\\".contains(b) {
-                tmp.push(b'\\');
-            }
-            tmp.push(*b);
-        }
-        std::mem::swap(v, tmp);
+        w.write(b"\n")?;
+        w.write(indent(self.depth).as_bytes())?;
+        w.write(b"[")?;
+        w.write(self.writer.escape.escape(tag.as_bytes()))?;
+        w.write(b"]")?;
+        Ok(Node::new(self.writer, self.depth + 1))
     }
 }
 
@@ -273,10 +273,10 @@ where
 {
     fn drop(&mut self) {
         if self.has_block {
-            let _ = self
-                .writer
-                .buf_writer
-                .write(format!("\n{}}}", indent(self.depth - 1)).as_bytes());
+            let w = &mut self.writer.buf_writer;
+            let _ = w.write(b"\n");
+            let _ = w.write(indent(self.depth - 1).as_bytes());
+            let _ = w.write(b"}");
         }
     }
 }
@@ -285,10 +285,53 @@ fn indent(depth: usize) -> String {
     "  ".repeat(depth)
 }
 
+struct Escape {
+    tmp: Vec<u8>,
+}
+
+impl Escape {
+    fn new() -> Escape {
+        Escape { tmp: Vec::new() }
+    }
+
+    fn escape<'a>(&'a mut self, v: &[u8]) -> &'a [u8] {
+        self.tmp.clear();
+
+        for b in v.iter() {
+            if b"[](){}\\".contains(b) {
+                self.tmp.push(b'\\');
+            }
+            self.tmp.push(*b);
+        }
+
+        &self.tmp
+    }
+
+    fn unescape<'a>(&'a mut self, v: &[u8]) -> &'a [u8] {
+        self.tmp.clear();
+
+        let mut it = v.iter();
+        while let Some(b) = it.next() {
+            if *b == b'\\' {
+                match it.next() {
+                    None => {
+                        self.tmp.push(*b);
+                        break;
+                    }
+                    Some(bb) => self.tmp.push(*bb),
+                }
+            } else {
+                self.tmp.push(*b);
+            }
+        }
+
+        &self.tmp
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Empty;
 
     #[test]
     fn test_read() -> util::Result<()> {
@@ -312,10 +355,10 @@ mod tests {
         let mut w = Writer::new(buf);
 
         {
-            let mut n0 = w.node("n0")?;
+            let mut n0 = w.node("n(0)")?;
             n0.attr("k", "v")?.key("key")?;
             {
-                let mut n00 = n0.node("n00")?;
+                let mut n00 = n0.node("n[0]0")?;
                 n00.attr("K", "V")?;
             }
             {
@@ -327,7 +370,7 @@ mod tests {
         let buf = w.get_mut()?;
         println!("{}", std::str::from_utf8(buf)?);
         assert_eq!(
-            "[n0](k:v)(key){\n  [n00](K:V)\n  [n01](K:V)\n}",
+            "[n\\(0\\)](k:v)(key){\n  [n\\[0\\]0](K:V)\n  [n01](K:V)\n}",
             std::str::from_utf8(buf)?
         );
 
@@ -341,8 +384,7 @@ mod tests {
 
     #[test]
     fn test_escape() -> util::Result<()> {
-        let mut w = Writer::new(std::io::empty());
-        let mut n = w.node("")?;
+        let mut esc = Escape::new();
         let scns = [
             Scn {
                 inp: "abc".as_bytes(),
@@ -354,9 +396,11 @@ mod tests {
             },
         ];
         for scn in scns {
-            let mut act = Vec::from(scn.inp);
-            n.escape(&mut act);
+            let act = esc.escape(scn.inp);
             assert_eq!(act, scn.exp);
+
+            let act = esc.unescape(scn.exp);
+            assert_eq!(act, scn.inp);
         }
         Ok(())
     }
