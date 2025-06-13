@@ -5,6 +5,13 @@ task :default do
     sh("rake -T")
 end
 
+namespace :zig do
+    desc("Install application")
+    task :install do
+        sh("zig build install --prefix-exe-dir #{here_dir}")
+    end
+end
+
 namespace :rust do
     desc("Install application")
     task :install do
